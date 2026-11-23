@@ -335,6 +335,49 @@ function makeRunner() {
 }
 const runner = makeRunner();
 
+
+// A stylized motorcycle rider follows the runner. All geometry is generated locally.
+function makeBikeChaser() {
+  const root = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({color:0x172335,roughness:0.7});
+  const blue = new THREE.MeshStandardMaterial({color:0x1674d1,metalness:0.3,roughness:0.4});
+  const silver = new THREE.MeshStandardMaterial({color:0xd5e6ef,metalness:0.65,roughness:0.3});
+  const helmet = new THREE.MeshStandardMaterial({color:0xffd33d,roughness:0.5});
+  function part(material,w,h,d,x,y,z) {
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+    m.position.set(x,y,z);m.castShadow=true;root.add(m);return m;
+  }
+  for (const z of [-0.85,0.85]) {
+    const tire=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.14,9,16),dark);
+    tire.rotation.y=Math.PI/2;tire.position.set(0,0.48,z);tire.castShadow=true;root.add(tire);
+    const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.13,0.15,12),silver);
+    hub.rotation.z=Math.PI/2;hub.position.set(0,0.48,z);root.add(hub);
+  }
+  part(blue,0.65,0.35,1.4,0,0.94,0);
+  part(dark,0.62,0.15,0.7,0,1.2,0.18);
+  part(silver,1.12,0.12,0.12,0,1.45,-0.72);
+  part(dark,0.5,0.85,0.38,0,1.75,0.16);
+  part(helmet,0.52,0.48,0.5,0,2.38,-0.04);
+  part(silver,0.4,0.12,0.07,0,2.38,-0.31);
+  part(dark,0.22,0.72,0.2,-0.36,1.62,-0.28);
+  part(dark,0.22,0.72,0.2,0.36,1.62,-0.28);
+  root.scale.setScalar(0.85);
+  scene.add(root);
+  return root;
+}
+const bikeChaser = makeBikeChaser();
+function updateBikeChaser(dt,t) {
+  bikeChaser.visible = G.state !== 'menu' && G.state !== 'over';
+  if(!bikeChaser.visible)return;
+  const catching = G.state === 'crashed';
+  const targetZ = G.pz + (catching ? 1.3 : 5.2);
+  const targetX = G.px + (catching ? 0.4 : 1.15);
+  bikeChaser.position.x += (targetX-bikeChaser.position.x)*damp(5,dt);
+  bikeChaser.position.z += (targetZ-bikeChaser.position.z)*damp(catching?5:3,dt);
+  bikeChaser.position.y = 0.05+Math.sin(t*18)*0.035;
+  bikeChaser.rotation.z = Math.sin(t*2.5)*0.035;
+}
+
 // Optional GLB character
 let glb = null; // { pivot, mixer, actions: {run, jump, roll}, current }
 if (CONFIG.playerModel) {
@@ -498,6 +541,8 @@ function resetGame() {
     t.position.z = TILE_LEN - i * TILE_LEN;
     randomizeBuildings(t);
   });
+  bikeChaser.position.set(1.15,0,5.2);
+  bikeChaser.visible = false;
   runner.root.rotation.set(0, 0, 0);
   runner.root.position.set(0, 0, 0);
   runner.body.scale.set(1, 1, 1);
@@ -1029,6 +1074,7 @@ function frame(timestamp) {
 
   for (const c of coins) if (!c.taken && G.state !== 'quiz') c.mesh.rotation.y += dt * 3;
   animateRunner(dt, t);
+  updateBikeChaser(dt, t);
   updateCamera(dt, t);
   updateHud();
   renderer.render(scene, camera);
