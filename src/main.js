@@ -416,6 +416,67 @@ function updateBikeChaser(dt,t) {
   bikeChaser.rotation.z = Math.sin(t*2.5)*0.035;
 }
 
+// Original animated 3D meme-style pursuers, unlocked by checkpoint progression.
+// Not based on identifiable copyrighted meme characters or recordings.
+function makeFunnyChaser(color,headColor,ears=false) {
+  const root=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color,roughness:0.8});
+  const face=new THREE.MeshStandardMaterial({color:headColor,roughness:0.8});
+  function cube(w,h,d,x,y,z,m) {
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+    mesh.position.set(x,y,z);mesh.castShadow=true;root.add(mesh);return mesh;
+  }
+  cube(0.8,0.85,0.55,0,1.15,0,mat);
+  cube(0.74,0.7,0.62,0,1.92,0,face);
+  cube(0.13,0.15,0.06,-0.17,2.03,0.34,mat);
+  cube(0.13,0.15,0.06,0.17,2.03,0.34,mat);
+  cube(0.4,0.09,0.06,0,1.77,0.34,mat);
+  if(ears){cube(0.23,0.56,0.24,-0.27,2.49,0,face);cube(0.23,0.56,0.24,0.27,2.49,0,face);}
+  const limbs=[];
+  for(const x of [-0.26,0.26]){
+    const leg=cube(0.22,0.7,0.3,x,0.45,0,mat);limbs.push(leg);
+    const arm=cube(0.2,0.68,0.3,x*2,1.25,0,mat);limbs.push(arm);
+  }
+  root.scale.setScalar(0.85);
+  scene.add(root);
+  return {root,limbs};
+}
+const funnyChasers=[
+  makeFunnyChaser(0xff6b96,0xffd5a8,true),
+  makeFunnyChaser(0x7c3aed,0x6ee7b7,false),
+  makeFunnyChaser(0xffb703,0xfef3c7,true)
+];
+function playOriginalChaseCue(level) {
+  ensureAudio();
+  if(!actx)return;
+  const patterns=[[440,660,880],[210,160,110],[330,495,740,990]];
+  const pattern=patterns[level%patterns.length],now=actx.currentTime+0.03;
+  pattern.forEach((freq,i)=>{
+    const o=actx.createOscillator(),g=actx.createGain(),at=now+i*0.13;
+    o.type=level===1?'sawtooth':'triangle';
+    o.frequency.setValueAtTime(freq,at);
+    o.frequency.exponentialRampToValueAtTime(freq*(level===1?0.6:1.12),at+0.12);
+    g.gain.setValueAtTime(0.0001,at);
+    g.gain.exponentialRampToValueAtTime(0.065,at+0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001,at+0.16);
+    o.connect(g).connect(actx.destination);o.start(at);o.stop(at+0.17);
+  });
+}
+function updateFunnyChasers(t) {
+  const active=G.state==='playing'||G.state==='crashed'||G.state==='quiz';
+  const unlocked=Math.min(3,Math.max(1,G.quizCount+1));
+  funnyChasers.forEach((c,i)=>{
+    c.root.visible=active&&i<unlocked;
+    if(!c.root.visible)return;
+    const x=G.px+[-2.1,2.1,0][i];
+    const z=G.pz+[4.2,4.7,6.3][i];
+    c.root.position.x+=(x-c.root.position.x)*0.16;
+    c.root.position.z+=(z-c.root.position.z)*0.16;
+    c.root.position.y=Math.abs(Math.sin(t*9+i))*0.13;
+    c.limbs.forEach((limb,j)=>{limb.rotation.x=Math.sin(t*12+i+j*Math.PI)*0.45;});
+  });
+}
+
 // Optional GLB character
 let glb = null; // { pivot, mixer, actions: {run, jump, roll}, current }
 if (CONFIG.playerModel) {
@@ -612,6 +673,7 @@ function resetGame() {
   });
   bikeChaser.position.set(1.85,0,3.0);
   bikeChaser.visible = false;
+  funnyChasers.forEach(c=>{c.root.visible=false;c.root.position.set(0,0,0);});
   runner.root.rotation.set(0, 0, 0);
   runner.root.position.set(0, 0, 0);
   runner.body.scale.set(1, 1, 1);
@@ -640,6 +702,7 @@ function showQuiz() {
   if (G.state !== 'playing') return;
   G.state = 'quiz';
   roadMusic.pause();
+  playOriginalChaseCue(G.quizCount);
   activeQuestion = chooseQuestion(G.lastQuestionId, Math.random, selectedLevel);
   G.lastQuestionId = activeQuestion.id;
   G.quizCount++;
@@ -1145,6 +1208,7 @@ function frame(timestamp) {
   for (const c of coins) if (!c.taken && G.state !== 'quiz') c.mesh.rotation.y += dt * 3;
   animateRunner(dt, t);
   updateBikeChaser(dt, t);
+  updateFunnyChasers(t);
   updateMultiplayer(t);
   updateCamera(dt, t);
   updateHud();
