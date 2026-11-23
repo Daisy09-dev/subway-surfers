@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { chooseQuestion, evaluateAnswer } from './quiz/questions.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // =====================================================================
@@ -426,6 +427,13 @@ const ui = {
   newBest: document.getElementById('new-best'),
   flash: document.getElementById('flash'),
   loading: document.getElementById('loading'),
+  quizOverlay: document.getElementById('quiz-overlay'),
+  quizTopic: document.getElementById('quiz-topic'),
+  quizProgress: document.getElementById('quiz-progress'),
+  quizQuestion: document.getElementById('quiz-question'),
+  quizChoices: document.getElementById('quiz-choices'),
+  quizFeedback: document.getElementById('quiz-feedback'),
+  quizNext: document.getElementById('quiz-next'),
 };
 
 function loadBest() {
@@ -460,6 +468,10 @@ const G = {
   nextRowZ: -45,
   laneEnd: [Infinity, Infinity, Infinity],
   overAt: 0,
+  quizCount: 0,
+  quizCorrect: 0,
+  nextQuizScore: 150,
+  lastQuestionId: null,
 };
 const obstacles = [];
 const coins = [];
@@ -475,6 +487,7 @@ function resetGame() {
     speed: CONFIG.startSpeed, grounded: true, rollTimer: 0, stumbleTimer: 0,
     crashTimer: 0, shake: 0, phase: 0, coins: 0, score: 0, nextRowZ: -45,
     laneEnd: [Infinity, Infinity, Infinity],
+    quizCount: 0, quizCorrect: 0, nextQuizScore: 150, lastQuestionId: null,
   });
   tiles.forEach((t, i) => {
     t.position.z = TILE_LEN - i * TILE_LEN;
@@ -494,8 +507,53 @@ function startGame() {
   G.state = 'playing';
   ui.menu.classList.add('hidden');
   ui.over.classList.add('hidden');
+  ui.quizOverlay.classList.add('hidden');
   beep(520, 0.1, 'square', 0.04, 1.5);
 }
+
+
+// Quiz checkpoint: freeze gameplay until a choice is submitted.
+// The UI is deliberately separate from the 3D physics and spawning logic.
+let activeQuestion = null;
+function showQuiz() {
+  if (G.state !== 'playing') return;
+  G.state = 'quiz';
+  activeQuestion = chooseQuestion(G.lastQuestionId);
+  G.lastQuestionId = activeQuestion.id;
+  G.quizCount++;
+  ui.quizTopic.textContent = activeQuestion.topic;
+  ui.quizProgress.textContent = 'Checkpoint ' + G.quizCount + ' · ' + G.quizCorrect + ' correct';
+  ui.quizQuestion.textContent = activeQuestion.prompt;
+  ui.quizFeedback.textContent = '';
+  ui.quizNext.classList.add('hidden');
+  ui.quizChoices.replaceChildren();
+  activeQuestion.choices.forEach((choice, index) => {
+    const button = document.createElement('button');
+    button.className = 'quiz-choice';
+    button.type = 'button';
+    button.textContent = String.fromCharCode(65 + index) + '. ' + choice;
+    button.addEventListener('click', () => answerQuiz(index), { once: true });
+    ui.quizChoices.append(button);
+  });
+  ui.quizOverlay.classList.remove('hidden');
+  ui.quizChoices.querySelector('button')?.focus();
+}
+function answerQuiz(index) {
+  if (G.state !== 'quiz' || !activeQuestion || !ui.quizNext.classList.contains('hidden')) return;
+  const result = evaluateAnswer(activeQuestion, index);
+  if (result.correct) { G.quizCorrect++; G.coins += 5; }
+  ui.quizFeedback.textContent = (result.correct ? 'Correct! +5 safety points. ' : 'Not quite. ') + result.explanation;
+  for (const button of ui.quizChoices.children) button.disabled = true;
+  ui.quizProgress.textContent = G.quizCorrect + ' / ' + G.quizCount + ' correct';
+  ui.quizNext.classList.remove('hidden');
+  ui.quizNext.focus();
+}
+ui.quizNext.addEventListener('click', () => {
+  if (G.state !== 'quiz' || ui.quizNext.classList.contains('hidden')) return;
+  activeQuestion = null;
+  ui.quizOverlay.classList.add('hidden');
+  G.state = 'playing';
+});
 
 function gameOver() {
   G.state = 'over';
@@ -718,6 +776,7 @@ function roll() {
 window.addEventListener('keydown', (e) => {
   const k = e.code;
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(k)) e.preventDefault();
+  if (G.state === 'quiz') return;
   if (G.state === 'menu' || (G.state === 'over' && performance.now() - G.overAt > 400)) {
     if (k === 'Enter' || k === 'Space') startGame();
     return;
@@ -821,6 +880,11 @@ function updatePlaying(dt) {
   }
 
   G.score = Math.floor(-G.pz);
+  if (G.score >= G.nextQuizScore) {
+    G.nextQuizScore += 250;
+    showQuiz();
+    return;
+  }
   spawnAhead();
   recycle();
 }
@@ -853,6 +917,7 @@ function animateRunner(dt, t) {
   const rolling = G.rollTimer > 0;
   const k = damp(18, dt);
 
+  if (G.state === 'quiz') return;
   if (G.state === 'crashed' || G.state === 'over') {
     r.root.rotation.x += (1.25 - r.root.rotation.x) * damp(6, dt);
     if (glb) glb.mixer.update(0);
@@ -941,7 +1006,7 @@ function frame(timestamp) {
     if (G.crashTimer <= 0) gameOver();
   }
 
-  for (const c of coins) if (!c.taken) c.mesh.rotation.y += dt * 3;
+  for (const c of coins) if (!c.taken && G.state !== 'quiz') c.mesh.rotation.y += dt * 3;
   animateRunner(dt, t);
   updateCamera(dt, t);
   updateHud();
