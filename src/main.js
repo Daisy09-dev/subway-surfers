@@ -498,6 +498,37 @@ function beep(freq, dur = 0.08, type = 'square', vol = 0.04, slide = 1) {
   o.stop(t + dur + 0.02);
 }
 
+// Original cartoon-style game-over sting; no third-party meme audio samples.
+function playMemeGameOver() {
+  ensureAudio();
+  if (!actx) return;
+  const now=actx.currentTime+0.04;
+  const notes=[392,311,247,175];
+  notes.forEach((hz,i)=>{
+    const start=now+i*0.21, duration=i===3?0.55:0.23;
+    const osc=actx.createOscillator(),gain=actx.createGain();
+    osc.type='sawtooth';
+    osc.frequency.setValueAtTime(hz,start);
+    osc.frequency.exponentialRampToValueAtTime(hz*0.72,start+duration);
+    gain.gain.setValueAtTime(0.0001,start);
+    gain.gain.exponentialRampToValueAtTime(0.075,start+0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001,start+duration);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(start);osc.stop(start+duration+0.02);
+  });
+  // Short goofy 'boing' after the descending wah-wah.
+  const start=now+0.94,osc=actx.createOscillator(),gain=actx.createGain();
+  osc.type='triangle';
+  osc.frequency.setValueAtTime(130,start);
+  osc.frequency.exponentialRampToValueAtTime(520,start+0.13);
+  osc.frequency.exponentialRampToValueAtTime(95,start+0.39);
+  gain.gain.setValueAtTime(0.0001,start);
+  gain.gain.exponentialRampToValueAtTime(0.09,start+0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001,start+0.4);
+  osc.connect(gain).connect(actx.destination);
+  osc.start(start);osc.stop(start+0.42);
+}
+
 // =====================================================================
 // Game state
 // =====================================================================
@@ -649,6 +680,7 @@ ui.quizNext.addEventListener('click', () => {
 
 function gameOver() {
   roadMusic.pause();
+  playMemeGameOver();
   G.state = 'over';
   G.overAt = performance.now();
   const isBest = G.score > G.best;
