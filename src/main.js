@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createRoadRushMusic } from './music.js';
+import { createMultiplayer } from './multiplayer.js';
 const roadMusic = createRoadRushMusic();
 
 import { chooseQuestion, evaluateAnswer } from './quiz/questions.js';
@@ -366,12 +367,49 @@ function makeBikeChaser() {
   return root;
 }
 const bikeChaser = makeBikeChaser();
+// Remote player is a simple cyan runner, positioned relative to the local player.
+const remoteRoot = new THREE.Group();
+const remoteMat = new THREE.MeshStandardMaterial({color:0x00e5ff,roughness:0.6});
+const remoteHead = new THREE.Mesh(new THREE.BoxGeometry(0.43,0.43,0.43),remoteMat);
+remoteHead.position.y=1.75;remoteRoot.add(remoteHead);
+const remoteTorso = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.8,0.4),remoteMat);
+remoteTorso.position.y=1.13;remoteRoot.add(remoteTorso);
+for(const x of [-0.21,0.21]){
+  const leg=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.8,0.3),remoteMat);
+  leg.position.set(x,0.4,0);remoteRoot.add(leg);
+}
+remoteRoot.visible=false;scene.add(remoteRoot);
+let remoteState=null;
+const roomStatus=document.getElementById('room-status');
+const multiplayer=createMultiplayer(data=>{remoteState=data;remoteRoot.visible=!!data;},msg=>{if(roomStatus)roomStatus.textContent=msg;});
+document.getElementById('create-room')?.addEventListener('click',async e=>{
+  e.stopPropagation();const code=await multiplayer.create();
+  if(code)document.getElementById('room-code').value=code;
+});
+document.getElementById('join-room')?.addEventListener('click',e=>{
+  e.stopPropagation();multiplayer.join(document.getElementById('room-code').value);
+});
+document.getElementById('leave-room')?.addEventListener('click',e=>{e.stopPropagation();multiplayer.close();});
+let lastNetworkSend=0;
+function updateMultiplayer(t){
+  if(multiplayer.connected&&t-lastNetworkSend>0.075){
+    lastNetworkSend=t;
+    multiplayer.send({x:G.px,y:G.py,z:G.pz,score:G.score,state:G.state});
+  }
+  if(remoteState&&G.state!=='menu'&&G.state!=='over'){
+    remoteRoot.visible=true;
+    // Relative offset keeps the other racer visible even if their runs start at different times.
+    const delta=Math.max(-7,Math.min(7,(remoteState.z-G.pz)*0.14));
+    remoteRoot.position.lerp(new THREE.Vector3(remoteState.x,Math.max(0,remoteState.y),G.pz+delta-2),0.16);
+  } else remoteRoot.visible=false;
+}
+
 function updateBikeChaser(dt,t) {
   bikeChaser.visible = G.state !== 'menu' && G.state !== 'over';
   if(!bikeChaser.visible)return;
   const catching = G.state === 'crashed';
-  const targetZ = G.pz + (catching ? 1.3 : 5.2);
-  const targetX = G.px + (catching ? 0.4 : 1.15);
+  const targetZ = G.pz + (catching ? 1.5 : 3.0);
+  const targetX = G.px + (catching ? 0.55 : 1.85);
   bikeChaser.position.x += (targetX-bikeChaser.position.x)*damp(5,dt);
   bikeChaser.position.z += (targetZ-bikeChaser.position.z)*damp(catching?5:3,dt);
   bikeChaser.position.y = 0.05+Math.sin(t*18)*0.035;
@@ -541,7 +579,7 @@ function resetGame() {
     t.position.z = TILE_LEN - i * TILE_LEN;
     randomizeBuildings(t);
   });
-  bikeChaser.position.set(1.15,0,5.2);
+  bikeChaser.position.set(1.85,0,3.0);
   bikeChaser.visible = false;
   runner.root.rotation.set(0, 0, 0);
   runner.root.position.set(0, 0, 0);
@@ -1032,16 +1070,16 @@ function animateRunner(dt, t) {
 
 function updateCamera(dt, t) {
   const tx = G.px * 0.8;
-  const ty = 4.3 + G.py * 0.6;
+  const ty = 5.1 + G.py * 0.6;
   camera.position.x += (tx - camera.position.x) * damp(8, dt);
   camera.position.y += (ty - camera.position.y) * damp(6, dt);
-  camera.position.z = G.pz + 7.8;
+  camera.position.z = G.pz + 10.2;
   if (G.shake > 0) {
     G.shake = Math.max(0, G.shake - dt);
     camera.position.x += (Math.random() - 0.5) * G.shake;
     camera.position.y += (Math.random() - 0.5) * G.shake;
   }
-  tmpLook.set(G.px * 0.85, 1.4 + G.py * 0.5, G.pz - 8);
+  tmpLook.set(G.px * 0.85, 1.6 + G.py * 0.5, G.pz - 7);
   camera.lookAt(tmpLook);
   const portraitBoost = camera.aspect < 1 ? (1 - camera.aspect) * 30 : 0; // wider view on phones
   const fov = 62 + portraitBoost + (G.speed - CONFIG.startSpeed) * 0.35;
@@ -1075,6 +1113,7 @@ function frame(timestamp) {
   for (const c of coins) if (!c.taken && G.state !== 'quiz') c.mesh.rotation.y += dt * 3;
   animateRunner(dt, t);
   updateBikeChaser(dt, t);
+  updateMultiplayer(t);
   updateCamera(dt, t);
   updateHud();
   renderer.render(scene, camera);
