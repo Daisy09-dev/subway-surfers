@@ -72,6 +72,10 @@
     .quiz-feedback { min-height:3em; line-height:1.5; margin-top:14px; }
     #quiz-next { margin-top:12px; width:100%; }
     #quiz-progress { font-size:13px; color:#c1e8ff; }
+    .room-panel {display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:7px;max-width:520px;}
+    .room-panel button {border:0;background:#38bdf8;color:#082237;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer;}
+    .room-panel input {width:100px;background:#fff;color:#102338;border:0;border-radius:10px;padding:10px;text-transform:uppercase;font-weight:800;letter-spacing:1px;}
+    #room-status {font-size:12px;min-height:18px;color:#e8f7ff;}
     .difficulty-picker {display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:6px 0;}
     .difficulty-picker label {background:#163c59;border:2px solid #397ca2;padding:10px 12px;border-radius:12px;font-weight:800;cursor:pointer;}
     .difficulty-picker label:has(input:checked){border-color:#ffd23f;background:#275c79;}
@@ -119,6 +123,8 @@
       <label><input type="radio" name="difficulty" value="pro" /> Pro</label>
     </div>
     <p class="subtitle">Practice questions based on LTO learning topics; not official exam questions.</p>
+    <div class="room-panel"><button id="create-room" type="button">Create room</button><input id="room-code" maxlength="6" placeholder="CODE" aria-label="Room code" /><button id="join-room" type="button">Join room</button><button id="leave-room" type="button">Leave</button></div>
+    <p id="room-status" aria-live="polite">Solo mode · Create or join a 2-player room</p>
     <button class="btn" id="play-btn">Tap to play</button>
   </div>
 
