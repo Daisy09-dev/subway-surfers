@@ -424,7 +424,7 @@ const memeArt=[
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220"><rect width="220" height="220" rx="24" fill="#efb56c"/><ellipse cx="110" cy="116" rx="78" ry="82" fill="#e7ba83"/><ellipse cx="54" cy="83" rx="28" ry="57" fill="#b9844f"/><ellipse cx="168" cy="83" rx="28" ry="57" fill="#b9844f"/><ellipse cx="81" cy="116" rx="9" ry="11" fill="#2b211d"/><ellipse cx="140" cy="116" rx="9" ry="11" fill="#2b211d"/><ellipse cx="110" cy="145" rx="24" ry="17" fill="#53392d"/><path d="M72 169 Q111 193 151 167" fill="none" stroke="#53392d" stroke-width="8" stroke-linecap="round"/><path d="M28 45 L8 4 M192 45 L213 4" stroke="#fff4db" stroke-width="8"/><text x="110" y="211" text-anchor="middle" font-size="18" font-weight="900" fill="#4b2d1d">DOGGO ALERT!</text></svg>`,
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220"><rect width="220" height="220" rx="24" fill="#39435f"/><path d="M40 122 Q15 9 110 11 Q209 9 180 126" fill="#33202b"/><ellipse cx="110" cy="113" rx="73" ry="88" fill="#efc6b2"/><path d="M33 96 Q30 4 107 14 Q192 0 189 93 L164 66 L62 67Z" fill="#2d1c28"/><ellipse cx="83" cy="108" rx="11" ry="14" fill="#fff"/><ellipse cx="139" cy="108" rx="11" ry="14" fill="#fff"/><circle cx="84" cy="109" r="5"/><circle cx="140" cy="109" r="5"/><ellipse cx="111" cy="159" rx="25" ry="36" fill="#5e2535"/><ellipse cx="111" cy="179" rx="12" ry="9" fill="#e67d91"/><text x="110" y="215" text-anchor="middle" font-size="19" font-weight="900" fill="#fff">AAAAAH!</text></svg>`
 ];
-const memeMilestones=[120,360];
+const memeMilestones=[30,80];
 const memeSprites=memeArt.map((svg,i)=>{
   const texture=new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg));
   texture.colorSpace=THREE.SRGBColorSpace;
