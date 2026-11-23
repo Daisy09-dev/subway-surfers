@@ -79,6 +79,26 @@ In repository **Settings → Pages**, select **Deploy from a branch**, choose **
 
 https://daisy09-dev.github.io/subway-surfers/
 
+## Deploy
+
+### Vercel (recommended)
+
+1. Connect the **Vercel** integration and import `Daisy09-dev/subway-surfers` from GitHub.
+2. Choose **Other** as the framework preset if prompted. This is a static site with no package install or build step.
+3. Keep the project root as `./`, and deploy. The included `vercel.json` sets the output directory to the repository root.
+4. Enable Git-based automatic deployments for future changes to `main`.
+
+### Docker (optional)
+
+```bash
+docker build -t lto-road-rush .
+docker run --rm -p 8080:80 lto-road-rush
+```
+
+Open **http://localhost:8080**. The container serves the existing HTML, JavaScript modules, assets, and vendored Three.js through Nginx. It does not require a Node.js runtime.
+
+> These are deployment instructions, not confirmation of a live deployment. Verify the hosted URL and complete a browser playthrough before publishing it as ready.
+
 ## Clean project structure
 
 ```text
