@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { createRoadRushMusic } from './music.js';
+const roadMusic = createRoadRushMusic();
+
 import { chooseQuestion, evaluateAnswer } from './quiz/questions.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -505,6 +508,7 @@ function startGame() {
   ensureAudio();
   resetGame();
   G.state = 'playing';
+  roadMusic.resume();
   ui.menu.classList.add('hidden');
   ui.over.classList.add('hidden');
   ui.quizOverlay.classList.add('hidden');
@@ -518,6 +522,7 @@ let activeQuestion = null;
 function showQuiz() {
   if (G.state !== 'playing') return;
   G.state = 'quiz';
+  roadMusic.pause();
   activeQuestion = chooseQuestion(G.lastQuestionId);
   G.lastQuestionId = activeQuestion.id;
   G.quizCount++;
@@ -553,9 +558,11 @@ ui.quizNext.addEventListener('click', () => {
   activeQuestion = null;
   ui.quizOverlay.classList.add('hidden');
   G.state = 'playing';
+  roadMusic.resume();
 });
 
 function gameOver() {
+  roadMusic.pause();
   G.state = 'over';
   G.overAt = performance.now();
   const isBest = G.score > G.best;
@@ -582,6 +589,7 @@ function flash(opacity = 0.45) {
 
 function crash() {
   if (G.state !== 'playing') return;
+  roadMusic.pause();
   G.state = 'crashed';
   G.crashTimer = 0.9;
   G.shake = 0.6;
@@ -772,6 +780,16 @@ function roll() {
   G.rollTimer = CONFIG.rollDuration;
   beep(300, 0.12, 'triangle', 0.04, 0.5);
 }
+
+const musicToggle = document.getElementById('music-toggle');
+const musicVolume = document.getElementById('music-volume');
+musicToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  roadMusic.setMuted(!roadMusic.muted);
+  musicToggle.textContent = roadMusic.muted ? '🔇 Music off' : '🎵 Music on';
+  musicToggle.setAttribute('aria-pressed', String(!roadMusic.muted));
+});
+musicVolume?.addEventListener('input', (e) => roadMusic.setVolume(Number(e.target.value) / 100 * 0.5));
 
 window.addEventListener('keydown', (e) => {
   const k = e.code;
