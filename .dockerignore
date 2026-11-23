@@ -1,0 +1,7 @@
+.git
+.github
+README.md
+Dockerfile
+.dockerignore
+node_modules
+.DS_Store
