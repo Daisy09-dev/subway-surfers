@@ -8,6 +8,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // =====================================================================
 // CONFIG – tweak the feel of the game here
 // =====================================================================
+let selectedLevel = 'beginner';
+const LEVELS = { beginner:{speed:13,quizInterval:250}, intermediate:{speed:19,quizInterval:180}, pro:{speed:25,quizInterval:120} };
 const CONFIG = {
   // Drop a rigged/animated GLB (e.g. from Meshy or Tripo) at this path to replace
   // the built-in runner. Clips whose names contain "run"/"walk", "jump" and
@@ -487,10 +489,10 @@ function resetGame() {
   coins.length = 0;
   Object.assign(G, {
     px: 0, py: 0, pz: 0, vy: 0, lane: 1, prevLane: 1,
-    speed: CONFIG.startSpeed, grounded: true, rollTimer: 0, stumbleTimer: 0,
+    speed: LEVELS[selectedLevel].speed, grounded: true, rollTimer: 0, stumbleTimer: 0,
     crashTimer: 0, shake: 0, phase: 0, coins: 0, score: 0, nextRowZ: -45,
     laneEnd: [Infinity, Infinity, Infinity],
-    quizCount: 0, quizCorrect: 0, nextQuizScore: 150, lastQuestionId: null,
+    quizCount: 0, quizCorrect: 0, nextQuizScore: LEVELS[selectedLevel].quizInterval, lastQuestionId: null,
   });
   tiles.forEach((t, i) => {
     t.position.z = TILE_LEN - i * TILE_LEN;
@@ -505,6 +507,7 @@ function resetGame() {
 }
 
 function startGame() {
+  selectedLevel = document.querySelector('input[name="difficulty"]:checked')?.value || selectedLevel;
   ensureAudio();
   resetGame();
   G.state = 'playing';
@@ -523,10 +526,10 @@ function showQuiz() {
   if (G.state !== 'playing') return;
   G.state = 'quiz';
   roadMusic.pause();
-  activeQuestion = chooseQuestion(G.lastQuestionId);
+  activeQuestion = chooseQuestion(G.lastQuestionId, Math.random, selectedLevel);
   G.lastQuestionId = activeQuestion.id;
   G.quizCount++;
-  ui.quizTopic.textContent = activeQuestion.topic;
+  ui.quizTopic.textContent = selectedLevel.toUpperCase() + ' · ' + activeQuestion.topic;
   ui.quizProgress.textContent = 'Checkpoint ' + G.quizCount + ' · ' + G.quizCorrect + ' correct';
   ui.quizQuestion.textContent = activeQuestion.prompt;
   ui.quizFeedback.textContent = '';
@@ -899,7 +902,7 @@ function updatePlaying(dt) {
 
   G.score = Math.floor(-G.pz);
   if (G.score >= G.nextQuizScore) {
-    G.nextQuizScore += 250;
+    G.nextQuizScore += LEVELS[selectedLevel].quizInterval;
     showQuiz();
     return;
   }
