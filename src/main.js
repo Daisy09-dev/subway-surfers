@@ -456,11 +456,27 @@ function resetMemeSprites(){
   });
 }
 function memeObstacle(m,i){
-  // Only add a jumpable low barrier in a free lane, never across all lanes.
-  const lane=i===0?0:2,z=G.pz-27;
-  if(obstacles.some(o=>o.lane===lane&&o.zMin<z+5&&o.zMax>z-5))return;
+  // Pursuers throw a jumpable barrier into the runner's current lane.
+  // Keep two other lanes open and give the runner time to react.
+  const lane=G.lane;
+  const z=G.pz-Math.max(34,G.speed*2.2);
+  if(obstacles.some(o=>o.lane===lane&&o.zMin<z+9&&o.zMax>z-9))return false;
   const o=spawnObstacle('low',lane,z);
   o.memeCreated=true;
+  o.mesh.traverse?.(part=>{
+    if(part.isMesh&&part.material?.color)part.material.color.setHex(i===0?0xff7c2e:0xff33a8);
+  });
+  // Brief, visible warning showing where the obstacle was thrown.
+  const warning=document.getElementById('meme-obstacle-warning')||(()=>{
+    const el=document.createElement('div');el.id='meme-obstacle-warning';
+    Object.assign(el.style,{position:'fixed',top:'17%',left:'50%',transform:'translateX(-50%)',zIndex:'20',background:'#d92727',color:'white',fontWeight:'900',padding:'10px 16px',borderRadius:'12px',pointerEvents:'none',textAlign:'center',fontSize:'clamp(13px,3.5vw,20px)',boxShadow:'0 4px 18px #0008'});
+    document.body.appendChild(el);return el;
+  })();
+  warning.textContent=(i===0?'🐕 DOGGO':'😱 SCREAM')+' THREW A BARRIER! JUMP OR DODGE!';
+  warning.style.display='block';
+  warning.dataset.hideAt=String(performance.now()+1400);
+  playOriginalChaseCue(i);
+  return true;
 }
 function updateMemeSprites(dt,t){
   const active=G.state==='playing'||G.state==='crashed'||G.state==='quiz';
@@ -484,9 +500,8 @@ function updateMemeSprites(dt,t){
       m.mesh.position.z+=(tz-m.mesh.position.z)*Math.min(1,dt*5);
       m.pop=Math.max(0,m.pop-dt*2);
       m.mesh.scale.setScalar(1+Math.sin(t*9+i)*0.08+m.pop*0.7);
-      if(G.state==='playing'&&G.score-m.lastObstacle>140){
-        m.lastObstacle=G.score;
-        memeObstacle(m,i);
+      if(G.state==='playing'&&G.score-m.lastObstacle>95){
+        if(memeObstacle(m,i))m.lastObstacle=G.score;
       }
     }
     m.mesh.position.y=1.65+Math.sin(t*8+i)*0.2;
@@ -706,6 +721,7 @@ function resetGame() {
   bikeChaser.position.set(1.85,0,3.0);
   bikeChaser.visible = false;
   resetMemeSprites();
+  const warning=document.getElementById('meme-obstacle-warning');if(warning)warning.style.display='none';
   runner.root.rotation.set(0, 0, 0);
   runner.root.position.set(0, 0, 0);
   runner.body.scale.set(1, 1, 1);
@@ -1241,6 +1257,8 @@ function frame(timestamp) {
   animateRunner(dt, t);
   updateBikeChaser(dt, t);
   updateMemeSprites(dt,t);
+  const obstacleWarning=document.getElementById('meme-obstacle-warning');
+  if(obstacleWarning&&performance.now()>Number(obstacleWarning.dataset.hideAt||0))obstacleWarning.style.display='none';
   updateMultiplayer(t);
   updateCamera(dt, t);
   updateHud();
