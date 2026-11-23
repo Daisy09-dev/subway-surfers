@@ -418,62 +418,79 @@ function updateBikeChaser(dt,t) {
 
 // Original animated 3D meme-style pursuers, unlocked by checkpoint progression.
 // Not based on identifiable copyrighted meme characters or recordings.
-function makeFunnyChaser(color,headColor,ears=false) {
-  const root=new THREE.Group();
-  const mat=new THREE.MeshStandardMaterial({color,roughness:0.8});
-  const face=new THREE.MeshStandardMaterial({color:headColor,roughness:0.8});
-  function cube(w,h,d,x,y,z,m) {
-    const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
-    mesh.position.set(x,y,z);mesh.castShadow=true;root.add(mesh);return mesh;
-  }
-  cube(0.8,0.85,0.55,0,1.15,0,mat);
-  cube(0.74,0.7,0.62,0,1.92,0,face);
-  cube(0.13,0.15,0.06,-0.17,2.03,0.34,mat);
-  cube(0.13,0.15,0.06,0.17,2.03,0.34,mat);
-  cube(0.4,0.09,0.06,0,1.77,0.34,mat);
-  if(ears){cube(0.23,0.56,0.24,-0.27,2.49,0,face);cube(0.23,0.56,0.24,0.27,2.49,0,face);}
-  const limbs=[];
-  for(const x of [-0.26,0.26]){
-    const leg=cube(0.22,0.7,0.3,x,0.45,0,mat);limbs.push(leg);
-    const arm=cube(0.2,0.68,0.3,x*2,1.25,0,mat);limbs.push(arm);
-  }
-  root.scale.setScalar(0.85);
-  scene.add(root);
-  return {root,limbs};
-}
-const funnyChasers=[
-  makeFunnyChaser(0xff6b96,0xffd5a8,true),
-  makeFunnyChaser(0x7c3aed,0x6ee7b7,false),
-  makeFunnyChaser(0xffb703,0xfef3c7,true)
+// Checkpoint meme billboards: stand on road ahead, pop, then pursue the runner.
+// The supplied screenshots are visual references; these are lightweight drawn sprites.
+const memeArt=[
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220"><rect width="220" height="220" rx="24" fill="#efb56c"/><ellipse cx="110" cy="116" rx="78" ry="82" fill="#e7ba83"/><ellipse cx="54" cy="83" rx="28" ry="57" fill="#b9844f"/><ellipse cx="168" cy="83" rx="28" ry="57" fill="#b9844f"/><ellipse cx="81" cy="116" rx="9" ry="11" fill="#2b211d"/><ellipse cx="140" cy="116" rx="9" ry="11" fill="#2b211d"/><ellipse cx="110" cy="145" rx="24" ry="17" fill="#53392d"/><path d="M72 169 Q111 193 151 167" fill="none" stroke="#53392d" stroke-width="8" stroke-linecap="round"/><path d="M28 45 L8 4 M192 45 L213 4" stroke="#fff4db" stroke-width="8"/><text x="110" y="211" text-anchor="middle" font-size="18" font-weight="900" fill="#4b2d1d">DOGGO ALERT!</text></svg>`,
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220"><rect width="220" height="220" rx="24" fill="#39435f"/><path d="M40 122 Q15 9 110 11 Q209 9 180 126" fill="#33202b"/><ellipse cx="110" cy="113" rx="73" ry="88" fill="#efc6b2"/><path d="M33 96 Q30 4 107 14 Q192 0 189 93 L164 66 L62 67Z" fill="#2d1c28"/><ellipse cx="83" cy="108" rx="11" ry="14" fill="#fff"/><ellipse cx="139" cy="108" rx="11" ry="14" fill="#fff"/><circle cx="84" cy="109" r="5"/><circle cx="140" cy="109" r="5"/><ellipse cx="111" cy="159" rx="25" ry="36" fill="#5e2535"/><ellipse cx="111" cy="179" rx="12" ry="9" fill="#e67d91"/><text x="110" y="215" text-anchor="middle" font-size="19" font-weight="900" fill="#fff">AAAAAH!</text></svg>`
 ];
-function playOriginalChaseCue(level) {
-  ensureAudio();
-  if(!actx)return;
-  const patterns=[[440,660,880],[210,160,110],[330,495,740,990]];
-  const pattern=patterns[level%patterns.length],now=actx.currentTime+0.03;
-  pattern.forEach((freq,i)=>{
-    const o=actx.createOscillator(),g=actx.createGain(),at=now+i*0.13;
-    o.type=level===1?'sawtooth':'triangle';
-    o.frequency.setValueAtTime(freq,at);
-    o.frequency.exponentialRampToValueAtTime(freq*(level===1?0.6:1.12),at+0.12);
-    g.gain.setValueAtTime(0.0001,at);
-    g.gain.exponentialRampToValueAtTime(0.065,at+0.015);
-    g.gain.exponentialRampToValueAtTime(0.0001,at+0.16);
-    o.connect(g).connect(actx.destination);o.start(at);o.stop(at+0.17);
+const memeMilestones=[120,360];
+const memeSprites=memeArt.map((svg,i)=>{
+  const texture=new THREE.TextureLoader().load('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg));
+  texture.colorSpace=THREE.SRGBColorSpace;
+  const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,side:THREE.DoubleSide,depthWrite:false});
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(2.15,2.15),material);
+  mesh.visible=false;mesh.position.set(i===0?-2.4:2.4,1.7,-memeMilestones[i]);
+  scene.add(mesh);
+  return {mesh,unlocked:false,pop:0,lastObstacle:-Infinity};
+});
+function resetMemeSprites(){
+  memeSprites.forEach((m,i)=>{
+    m.unlocked=false;m.pop=0;m.lastObstacle=-Infinity;
+    m.mesh.visible=false;
+    m.mesh.position.set(i===0?-2.4:2.4,1.7,-memeMilestones[i]);
+    m.mesh.scale.setScalar(1);
   });
 }
-function updateFunnyChasers(t) {
+function memeObstacle(m,i){
+  // Only add a jumpable low barrier in a free lane, never across all lanes.
+  const lane=i===0?0:2,z=G.pz-27;
+  if(obstacles.some(o=>o.lane===lane&&o.zMin<z+5&&o.zMax>z-5))return;
+  const o=spawnObstacle('low',lane,z);
+  o.memeCreated=true;
+}
+function updateMemeSprites(dt,t){
   const active=G.state==='playing'||G.state==='crashed'||G.state==='quiz';
-  const unlocked=Math.min(3,Math.max(1,G.quizCount+1));
-  funnyChasers.forEach((c,i)=>{
-    c.root.visible=active&&i<unlocked;
-    if(!c.root.visible)return;
-    const x=G.px+[-2.1,2.1,0][i];
-    const z=G.pz+[4.2,4.7,6.3][i];
-    c.root.position.x+=(x-c.root.position.x)*0.16;
-    c.root.position.z+=(z-c.root.position.z)*0.16;
-    c.root.position.y=Math.abs(Math.sin(t*9+i))*0.13;
-    c.limbs.forEach((limb,j)=>{limb.rotation.x=Math.sin(t*12+i+j*Math.PI)*0.45;});
+  memeSprites.forEach((m,i)=>{
+    if(!active){m.mesh.visible=false;return;}
+    const milestone=memeMilestones[i];
+    const distance=milestone-G.score;
+    if(!m.unlocked&&distance<=0){
+      m.unlocked=true;m.pop=1;playOriginalChaseCue(i);
+    }
+    m.mesh.visible=m.unlocked||distance<70;
+    if(!m.mesh.visible)return;
+    if(!m.unlocked){
+      m.mesh.position.set(i===0?-2.4:2.4,1.7,-milestone);
+      m.mesh.scale.setScalar(1);
+    }else{
+      const tx=G.px+(i===0?-2.15:2.15),tz=G.pz+3.1+i*1.1;
+      m.mesh.position.x+=(tx-m.mesh.position.x)*Math.min(1,dt*5);
+      m.mesh.position.z+=(tz-m.mesh.position.z)*Math.min(1,dt*5);
+      m.pop=Math.max(0,m.pop-dt*2);
+      m.mesh.scale.setScalar(1+Math.sin(t*9+i)*0.08+m.pop*0.7);
+      if(G.state==='playing'&&G.score-m.lastObstacle>140){
+        m.lastObstacle=G.score;
+        memeObstacle(m,i);
+      }
+    }
+    m.mesh.position.y=1.65+Math.sin(t*8+i)*0.2;
+    m.mesh.quaternion.copy(camera.quaternion);
+  });
+}
+function playOriginalChaseCue(level){
+  ensureAudio();if(!actx)return;
+  const notes=level===0?[420,630,840]:[290,220,160];
+  notes.forEach((freq,i)=>{
+    const at=actx.currentTime+0.03+i*0.15;
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=level===0?'triangle':'sawtooth';
+    o.frequency.setValueAtTime(freq,at);
+    o.frequency.exponentialRampToValueAtTime(freq*0.75,at+0.15);
+    g.gain.setValueAtTime(0.0001,at);
+    g.gain.exponentialRampToValueAtTime(0.055,at+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,at+0.17);
+    o.connect(g).connect(actx.destination);o.start(at);o.stop(at+0.18);
   });
 }
 
@@ -673,7 +690,7 @@ function resetGame() {
   });
   bikeChaser.position.set(1.85,0,3.0);
   bikeChaser.visible = false;
-  funnyChasers.forEach(c=>{c.root.visible=false;c.root.position.set(0,0,0);});
+  resetMemeSprites();
   runner.root.rotation.set(0, 0, 0);
   runner.root.position.set(0, 0, 0);
   runner.body.scale.set(1, 1, 1);
@@ -702,7 +719,7 @@ function showQuiz() {
   if (G.state !== 'playing') return;
   G.state = 'quiz';
   roadMusic.pause();
-  playOriginalChaseCue(G.quizCount);
+
   activeQuestion = chooseQuestion(G.lastQuestionId, Math.random, selectedLevel);
   G.lastQuestionId = activeQuestion.id;
   G.quizCount++;
@@ -1208,7 +1225,7 @@ function frame(timestamp) {
   for (const c of coins) if (!c.taken && G.state !== 'quiz') c.mesh.rotation.y += dt * 3;
   animateRunner(dt, t);
   updateBikeChaser(dt, t);
-  updateFunnyChasers(t);
+  updateMemeSprites(dt,t);
   updateMultiplayer(t);
   updateCamera(dt, t);
   updateHud();
