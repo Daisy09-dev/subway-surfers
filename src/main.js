@@ -826,7 +826,7 @@ window.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerup', () => (gesture = null));
 window.addEventListener('pointercancel', () => (gesture = null));
 
-ui.menu.addEventListener('click', startGame);
+document.getElementById('play-btn').addEventListener('click', startGame);
 ui.over.addEventListener('click', () => {
   if (performance.now() - G.overAt > 400) startGame();
 });
