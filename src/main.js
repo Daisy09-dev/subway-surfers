@@ -448,35 +448,63 @@ const memeSprites=memeArt.map((svg,i)=>{
 });
 function resetMemeSprites(){
   memeSprites.forEach((m,i)=>{
-    m.unlocked=false;m.pop=0;m.lastObstacle=-Infinity;
+    if(m.throwing)scene.remove(m.throwing.projectile);
+    m.unlocked=false;m.pop=0;m.lastObstacle=-Infinity;m.throwing=null;
     m.mesh.visible=false;
     memeCards[i].style.display='none';
     m.mesh.position.set(i===0?-2.4:2.4,1.7,-memeMilestones[i]);
     m.mesh.scale.setScalar(1);
   });
 }
+// Animated obstacle throw: the pursuer winds up, launches a visible barrier,
+// and the barrier becomes collidable only after landing on the road.
 function memeObstacle(m,i){
-  // Pursuers throw a jumpable barrier into the runner's current lane.
-  // Keep two other lanes open and give the runner time to react.
+  if(m.throwing)return false;
   const lane=G.lane;
-  const z=G.pz-Math.max(34,G.speed*2.2);
+  const z=G.pz-Math.max(38,G.speed*2.4);
   if(obstacles.some(o=>o.lane===lane&&o.zMin<z+9&&o.zMax>z-9))return false;
-  const o=spawnObstacle('low',lane,z);
-  o.memeCreated=true;
-  o.mesh.traverse?.(part=>{
-    if(part.isMesh&&part.material?.color)part.material.color.setHex(i===0?0xff7c2e:0xff33a8);
-  });
-  // Brief, visible warning showing where the obstacle was thrown.
-  const warning=document.getElementById('meme-obstacle-warning')||(()=>{
-    const el=document.createElement('div');el.id='meme-obstacle-warning';
-    Object.assign(el.style,{position:'fixed',top:'17%',left:'50%',transform:'translateX(-50%)',zIndex:'20',background:'#d92727',color:'white',fontWeight:'900',padding:'10px 16px',borderRadius:'12px',pointerEvents:'none',textAlign:'center',fontSize:'clamp(13px,3.5vw,20px)',boxShadow:'0 4px 18px #0008'});
-    document.body.appendChild(el);return el;
-  })();
-  warning.textContent=(i===0?'🐕 DOGGO':'😱 SCREAM')+' THREW A BARRIER! JUMP OR DODGE!';
-  warning.style.display='block';
-  warning.dataset.hideAt=String(performance.now()+1400);
-  playOriginalChaseCue(i);
+  const projectile=new THREE.Group();
+  const material=new THREE.MeshStandardMaterial({color:i===0?0xff7c2e:0xff33a8,roughness:0.65});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.65,0.65,0.45),material);
+  projectile.add(body);
+  for(const x of [-0.65,0.65]){
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.7,0.49),new THREE.MeshStandardMaterial({color:0xffffff}));
+    stripe.position.x=x;projectile.add(stripe);
+  }
+  projectile.position.set(m.mesh.position.x,2.3,G.pz+2);
+  scene.add(projectile);
+  m.throwing={projectile,lane,z,elapsed:0,duration:0.95,start:projectile.position.clone()};
   return true;
+}
+function updateMemeThrow(m,i,dt){
+  const shot=m.throwing;
+  if(!shot)return;
+  if(G.state!=='playing')return;
+  shot.elapsed+=dt;
+  const p=Math.min(1,shot.elapsed/shot.duration);
+  const ease=p*p*(3-2*p);
+  shot.projectile.position.set(
+    shot.start.x+(laneX(shot.lane)-shot.start.x)*ease,
+    2.3+Math.sin(p*Math.PI)*3.2-2.0*ease,
+    shot.start.z+(shot.z-shot.start.z)*ease
+  );
+  shot.projectile.rotation.x+=dt*8;
+  shot.projectile.rotation.z+=dt*5;
+  if(p>=1){
+    scene.remove(shot.projectile);
+    // A real, collidable low barrier appears where the projectile lands.
+    if(!obstacles.some(o=>o.lane===shot.lane&&o.zMin<shot.z+4&&o.zMax>shot.z-4)){
+      const o=spawnObstacle('low',shot.lane,shot.z);
+      o.memeCreated=true;
+      o.mesh.traverse?.(part=>{
+        if(part.isMesh&&part.material?.color&&part.material.isMeshStandardMaterial){
+          part.material=part.material.clone();
+          part.material.color.setHex(i===0?0xff7c2e:0xff33a8);
+        }
+      });
+    }
+    m.throwing=null;
+  }
 }
 function updateMemeSprites(dt,t){
   const active=G.state==='playing'||G.state==='crashed'||G.state==='quiz';
@@ -489,7 +517,11 @@ function updateMemeSprites(dt,t){
     }
     m.mesh.visible=m.unlocked||distance<70;
     memeCards[i].style.display=m.unlocked?'block':'none';
-    if(m.unlocked)memeCards[i].style.transform='translateY('+Math.round(Math.sin(t*9+i)*12)+'px) rotate('+Math.round(Math.sin(t*5+i)*7)+'deg) scale('+(1+m.pop*0.5)+')';
+    if(m.unlocked){
+      const throwPhase=m.throwing?Math.min(1,m.throwing.elapsed/m.throwing.duration):0;
+      const lean=m.throwing?Math.sin(throwPhase*Math.PI)*30:Math.sin(t*5+i)*7;
+      memeCards[i].style.transform='translateY('+Math.round(Math.sin(t*9+i)*12-(m.throwing?20*Math.sin(throwPhase*Math.PI):0))+'px) rotate('+Math.round((i===0?1:-1)*lean)+'deg) scale('+(1+m.pop*0.5)+')';
+    }
     if(!m.mesh.visible)return;
     if(!m.unlocked){
       m.mesh.position.set(i===0?-2.4:2.4,1.7,-milestone);
@@ -500,6 +532,7 @@ function updateMemeSprites(dt,t){
       m.mesh.position.z+=(tz-m.mesh.position.z)*Math.min(1,dt*5);
       m.pop=Math.max(0,m.pop-dt*2);
       m.mesh.scale.setScalar(1+Math.sin(t*9+i)*0.08+m.pop*0.7);
+      updateMemeThrow(m,i,dt);
       if(G.state==='playing'&&G.score-m.lastObstacle>95){
         if(memeObstacle(m,i))m.lastObstacle=G.score;
       }
@@ -721,7 +754,6 @@ function resetGame() {
   bikeChaser.position.set(1.85,0,3.0);
   bikeChaser.visible = false;
   resetMemeSprites();
-  const warning=document.getElementById('meme-obstacle-warning');if(warning)warning.style.display='none';
   runner.root.rotation.set(0, 0, 0);
   runner.root.position.set(0, 0, 0);
   runner.body.scale.set(1, 1, 1);
@@ -1257,8 +1289,6 @@ function frame(timestamp) {
   animateRunner(dt, t);
   updateBikeChaser(dt, t);
   updateMemeSprites(dt,t);
-  const obstacleWarning=document.getElementById('meme-obstacle-warning');
-  if(obstacleWarning&&performance.now()>Number(obstacleWarning.dataset.hideAt||0))obstacleWarning.style.display='none';
   updateMultiplayer(t);
   updateCamera(dt, t);
   updateHud();
