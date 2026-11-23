@@ -1,6 +1,9 @@
-# LTO Road Rush 🚦
+# ROAD RUSH 🚦
 
 **Run. Dodge. Learn the rules of the road.**
+
+> **Development history:** [Read the full request-to-implementation documentation](docs/DEVELOPMENT_DOCUMENTATION.md), including feature requests, code walkthroughs, deployment milestones, testing checklist, and limitations.
+
 
 LTO Road Rush is a browser-based **3D endless runner with road-safety quiz checkpoints**, adapted from the open-source [Subway Rush](https://github.com/AmineDehane/subway-surfers) project. It combines arcade gameplay with short questions about safe road behavior and, eventually, verified Philippine Land Transportation Office (LTO) rules.
 
